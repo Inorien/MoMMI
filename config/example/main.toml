@@ -23,4 +23,9 @@ password = "secret" #COMMLOOP PASSWORD
 type="gamenudge"
 "server_status" = [[692441846739238952, 1160976587844501586]] #server id, channel id
 "ick" =  [[692441846739238952, 1160976569435688970]]
+
 "adminhelp" =  [[692441846739238952, 1160976627078017175]]
+
+
+[commloop.route.changelog]
+"" = [[SERVER_ID, CHANGELOG_CHANNEL_ID]] #leading quotes are empty
