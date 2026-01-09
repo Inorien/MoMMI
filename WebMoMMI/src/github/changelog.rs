@@ -256,19 +256,24 @@ fn do_changelog(mut lock: MutexGuard<ChangelogManager>, config: Arc<MoMMIConfig>
         .get_ssh_key()
         .map(|p| format!("ssh -i {}", p.to_string_lossy()));
 
-    // Git pull the repo.
+    // Git pull the repo, resolve conflicts using remote version
     let mut command = Command::new("git");
     command
         .arg("pull")
         .arg("origin")
         .arg("--rebase")
+        .arg("-X")
+        .arg("theirs")
         .current_dir(&path);
     if let Some(ref ssh_command) = ssh_config {
         command.env("GIT_SSH_COMMAND", &ssh_command);
     }
     let status = command.status().unwrap();
 
-    assert!(status.success());
+    if !status.success() {
+        eprintln!("Pull failed with status: {:?}", status);
+        return;
+    }
 
     let mut changelog_dir_path = path.to_owned();
     changelog_dir_path.push("html/changelogs");
@@ -295,7 +300,10 @@ fn do_changelog(mut lock: MutexGuard<ChangelogManager>, config: Arc<MoMMIConfig>
                 continue;
             }
 
-            commloop(addr, pass, "changelog", "", data).unwrap();
+            match commloop(addr, pass, "changelog", "", &data) {
+                Ok(_) => println!("changelog for {} sent to commloop", file_name),
+                Err(e) => eprintln!("Failed sending changelog for {}: {:?}", file_name, e),
+            }
         }
     }
 
@@ -305,61 +313,68 @@ fn do_changelog(mut lock: MutexGuard<ChangelogManager>, config: Arc<MoMMIConfig>
         .arg("html/changelog.html")
         .arg("html/changelogs")
         .current_dir(&path)
-        .status()
-        .unwrap();
+        .status();
 
-    assert!(status.success());
-
-    Command::new("git")
-        .arg("update-index")
-        .arg("--refresh")
-        .current_dir(&path)
-        .status()
-        .unwrap();
-
-    // See if repo is dirty.
-    let status = Command::new("git")
-        .arg("diff-index")
-        .arg("--exit-code")
-        .arg("HEAD")
-        .current_dir(&path)
-        .status()
-        .unwrap();
-
-    if status.code().unwrap_or(0) == 0 {
-        // No changes, nothing to commit.
-        return;
+    match status {
+        Ok(s) if s.success() => println!("changelog script successful"),
+        Ok(s) => eprintln!("changelog script failed status: {:?}", s),
+        Err(e) => eprintln!("Failed running changelog script: {:?}", e),
     }
 
-    let status = Command::new("git")
-        .arg("add")
-        .arg(".")
-        .arg("-A")
-        .current_dir(&path)
-        .status()
-        .unwrap();
 
-    assert!(status.success());
+    // Job below is handled by a github action now
 
-    let status = Command::new("git")
-        .arg("commit")
-        .arg("-m")
-        .arg("[ci skip] Automatic changelog update.")
-        .current_dir(&path)
-        .status()
-        .unwrap();
 
-    assert!(status.success());
+    // Command::new("git")
+    //     .arg("update-index")
+    //     .arg("--refresh")
+    //     .current_dir(&path)
+    //     .status()
+    //     .unwrap();
+
+    // // See if repo is dirty.
+    // let status = Command::new("git")
+    //     .arg("diff-index")
+    //     .arg("--exit-code")
+    //     .arg("HEAD")
+    //     .current_dir(&path)
+    //     .status()
+    //     .unwrap();
+
+    // if status.code().unwrap_or(0) == 0 {
+    //     // No changes, nothing to commit.
+    //     return;
+    // }
+
+    // let status = Command::new("git")
+    //     .arg("add")
+    //     .arg(".")
+    //     .arg("-A")
+    //     .current_dir(&path)
+    //     .status()
+    //     .unwrap();
+
+    // assert!(status.success());
+
+    // let status = Command::new("git")
+    //     .arg("commit")
+    //     .arg("-m")
+    //     .arg("[ci skip] Automatic changelog update.")
+    //     .current_dir(&path)
+    //     .status()
+    //     .unwrap();
+
+    // assert!(status.success());
 
     // Git push the repo.
-    let mut command = Command::new("git");
-    command.arg("push").arg("origin").current_dir(&path);
-    if let Some(ref ssh_command) = ssh_config {
-        command.env("GIT_SSH_COMMAND", &ssh_command);
-    }
-    let status = command.status().unwrap();
-
-    assert!(status.success());
+    //let mut command = Command::new("git");
+    //command.arg("push").arg("origin").current_dir(&path);
+    //if let Some(ref ssh_command) = ssh_config {
+    //    command.env("GIT_SSH_COMMAND", &ssh_command);
+    //}
+    //let status = command.status().unwrap();
+//
+    //assert!(status.success());
 
     println!("done");
 }
